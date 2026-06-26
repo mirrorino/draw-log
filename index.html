@@ -169,7 +169,7 @@ table{border-collapse:collapse;width:100%}
     </div>
     <div class="topbar-r">
       <button class="icon-btn" id="theme-btn" onclick="toggleTheme()" aria-label="テーマ切替"></button>
-      <button class="icon-btn" onclick="doLogout()" title="ログアウト" aria-label="ログアウト">
+      <button class="icon-btn" onclick="signOutUser()" title="ログアウト" aria-label="ログアウト">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
       </button>
     </div>
@@ -272,9 +272,9 @@ async function doLogin(){
   try {
     const em=document.getElementById('em-input').value.trim();
     if(!em){ err.textContent='メールアドレスを入力してください'; btn.disabled=false; btn.textContent='ログイン'; return; }
-    const {data:d,error}=await sb.auth.signInWithPassword({email:em,password:pw});
+    const {error}=await sb.auth.signInWithPassword({email:em,password:pw});
     if(error) throw error;
-    await bootApp();
+    return;
   } catch(e){
     err.textContent='パスワードが違います';
     document.getElementById('pw-input').focus();
@@ -284,12 +284,16 @@ async function doLogin(){
 }
 
 async function doLogout(){
-  await sb.auth.signOut();
   document.getElementById('app').style.display='none';
   document.getElementById('login-wrap').style.display='flex';
   document.getElementById('pw-input').value='';
   document.getElementById('login-err').textContent='';
   data={};
+}
+
+async function signOutUser(){
+  await sb.auth.signOut();
+  await doLogout();
 }
 
 async function bootApp(){
@@ -310,8 +314,10 @@ async function bootApp(){
 
 // セッション復元
 sb.auth.onAuthStateChange(async(event,session)=>{
-  if(session && document.getElementById('login-wrap').style.display!=='none'){
+  if(session){
     await bootApp();
+  } else {
+    await doLogout();
   }
 });
 
