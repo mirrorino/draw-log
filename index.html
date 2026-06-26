@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>時間ログ</title>
+<link href="https://api.fontshare.com/v2/css?f[]=satoshi@400,500,600,700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root {
+  --bg:#171614;--surface:#1c1b19;--surface2:#201f1d;--offset:#252422;
+  --border:#393836;--divider:#262523;
+  --text:#cdccca;--muted:#797876;--faint:#5a5957;
+  --primary:#4f98a3;--primary-h:#227f8b;--primary-hi:#1e3537;
+  --success:#6daa45;--error:#d163a7;--gold:#e8af34;
+  --shadow:0 4px 16px rgba(0,0,0,.35);
+  --r4:.25rem;--r6:.375rem;--r8:.5rem;--r12:.75rem;--r16:1rem;--rfull:9999px;
+  --ease:180ms cubic-bezier(.16,1,.3,1);
+  --font:'Satoshi','Helvetica Neue',sans-serif;
+}
+[data-theme="light"]{
+  --bg:#f5f4f0;--surface:#faf9f6;--surface2:#ffffff;--offset:#edecea;
+  --border:#d0cdc7;--divider:#dbd8d3;
+  --text:#28251d;--muted:#7a7974;--faint:#b5b3ae;
+  --primary:#01696f;--primary-h:#0c4e54;--primary-hi:#d4e8e7;
+  --success:#437a22;--error:#a12c7b;--gold:#b8860b;
+  --shadow:0 4px 16px rgba(0,0,0,.10);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-font-smoothing:antialiased;text-size-adjust:none}
+body{min-height:100dvh;background:var(--bg);color:var(--text);font-family:var(--font);font-size:14px;display:flex;flex-direction:column;transition:background .2s,color .2s}
+button,input,select{font:inherit;color:inherit;cursor:pointer}
+button{background:none;border:none}
+table{border-collapse:collapse;width:100%}
+:focus-visible{outline:2px solid var(--primary);outline-offset:2px;border-radius:var(--r6)}
+
+/* LOGIN */
+.login-wrap{flex:1;display:flex;align-items:center;justify-content:center;padding:1rem}
+.login-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--r16);padding:2rem;width:100%;max-width:340px;box-shadow:var(--shadow)}
+.login-logo{display:flex;align-items:center;gap:.5rem;font-weight:700;font-size:16px;margin-bottom:1.75rem;justify-content:center;color:var(--text)}
+.login-logo svg{color:var(--primary)}
+.login-err{font-size:12px;color:var(--error);margin-top:.4rem;min-height:1.2em}
+
+/* TOPBAR */
+.topbar{position:sticky;top:0;z-index:50;height:54px;padding:0 1rem;display:flex;align-items:center;justify-content:space-between;background:var(--surface);border-bottom:1px solid var(--border)}
+.logo{display:flex;align-items:center;gap:.5rem;font-weight:700;font-size:15px;letter-spacing:-.02em}
+.logo svg{color:var(--primary)}
+.tabs{display:flex;gap:.2rem;background:var(--offset);padding:3px;border-radius:var(--r12)}
+.tab{padding:.3rem .9rem;border-radius:var(--r8);font-size:12px;font-weight:600;color:var(--muted);transition:all var(--ease)}
+.tab.on{background:var(--surface2);color:var(--text);box-shadow:0 1px 4px rgba(0,0,0,.15)}
+.tab:hover:not(.on){color:var(--text)}
+.topbar-r{display:flex;align-items:center;gap:.4rem}
+.icon-btn{width:34px;height:34px;border-radius:var(--r8);display:flex;align-items:center;justify-content:center;color:var(--muted);transition:all var(--ease)}
+.icon-btn:hover{background:var(--offset);color:var(--text)}
+
+/* MAIN */
+.main{flex:1;max-width:1180px;width:100%;margin:0 auto;padding:1.25rem}
+.view{display:none}.view.on{display:block}
+
+/* KPI */
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:.875rem;margin-bottom:1.25rem}
+.kpi{background:var(--surface);border:1px solid var(--border);border-radius:var(--r12);padding:1rem 1.1rem}
+.kpi-label{font-size:11px;color:var(--muted);font-weight:500;margin-bottom:.3rem}
+.kpi-value{font-size:1.6rem;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-.03em;line-height:1.1}
+.kpi-note{font-size:11px;margin-top:.3rem;font-weight:500}
+
+/* CARD */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r12);padding:1.1rem;margin-bottom:1.1rem}
+.card-title{font-size:13px;font-weight:700;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-bottom:.875rem}
+.badge{font-size:10px;font-weight:600;padding:.15rem .5rem;border-radius:var(--rfull);background:var(--primary-hi);color:var(--primary)}
+.ctl{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-left:auto}
+.ctl-label{font-size:11px;color:var(--muted)}
+
+/* TABLE */
+.tbl-wrap{overflow-x:auto}
+.ctable{font-size:12px;font-variant-numeric:tabular-nums}
+.ctable th{text-align:left;padding:.5rem .65rem;background:var(--offset);color:var(--muted);font-weight:600;border-bottom:1px solid var(--border)}
+.ctable td{padding:.5rem .65rem;border-bottom:1px solid rgba(255,255,255,.04)}
+[data-theme="light"] .ctable td{border-bottom-color:rgba(0,0,0,.05)}
+.ctable tr:hover td{background:var(--offset)}
+.ctable td.bold{font-weight:700}
+.ctable td.pos{color:var(--success);font-weight:600}
+.ctable td.neg{color:var(--error);font-weight:600}
+.ctable td.zero{color:var(--faint)}
+.ctable tfoot td{border-top:2px solid var(--border);font-weight:700}
+.ctable tr.hl td{background:color-mix(in srgb,var(--primary) 8%,var(--surface))}
+
+/* CHART */
+.chart-wrap{position:relative;height:320px}
+
+/* FORM */
+.record-grid{display:grid;grid-template-columns:1fr 1fr;gap:1.1rem}
+@media(max-width:760px){.record-grid{grid-template-columns:1fr}}
+.form{display:flex;flex-direction:column;gap:.875rem}
+.fg{display:flex;flex-direction:column;gap:.3rem}
+.fl{font-size:11px;font-weight:600;color:var(--muted)}
+.fi{background:var(--offset);border:1px solid var(--border);border-radius:var(--r8);padding:.55rem .75rem;width:100%;transition:border-color var(--ease),box-shadow var(--ease)}
+.fi:focus{outline:none;border-color:var(--primary);box-shadow:0 0 0 3px color-mix(in srgb,var(--primary) 20%,transparent)}
+.fi::placeholder{color:var(--faint)}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:.875rem}
+.btn-row{display:flex;gap:.6rem;flex-wrap:wrap;margin-top:.25rem}
+.btn{padding:.6rem .95rem;border-radius:var(--r8);font-size:13px;font-weight:600;display:inline-flex;align-items:center;gap:.4rem;transition:all var(--ease)}
+.btn:active{transform:scale(.97)}
+.btn:disabled{opacity:.5;pointer-events:none}
+.btn-p{background:var(--primary);color:#fff}.btn-p:hover{background:var(--primary-h)}
+.btn-g{border:1px solid var(--border);color:var(--muted)}.btn-g:hover{background:var(--offset);color:var(--text)}
+.btn-d{border:1px solid var(--border);color:var(--error)}.btn-d:hover{background:color-mix(in srgb,var(--error) 12%,var(--surface))}
+
+/* LOG */
+.log-card{max-height:500px;overflow:auto}
+.ltable{font-size:12px;font-variant-numeric:tabular-nums}
+.ltable th{text-align:left;padding:.4rem .6rem;background:var(--offset);color:var(--muted);border-bottom:1px solid var(--border);position:sticky;top:0}
+.ltable td{padding:.4rem .6rem;border-bottom:1px solid rgba(255,255,255,.04)}
+[data-theme="light"] .ltable td{border-bottom-color:rgba(0,0,0,.04)}
+.ltable tr:hover td{background:var(--offset)}
+.del{color:var(--faint);padding:.15rem .35rem;border-radius:var(--r4);font-size:11px}
+.del:hover{color:var(--error);background:color-mix(in srgb,var(--error) 12%,var(--surface))}
+
+/* LOADING */
+.loading{display:flex;align-items:center;justify-content:center;gap:.5rem;padding:2rem;color:var(--muted);font-size:13px}
+.spinner{width:18px;height:18px;border:2px solid var(--border);border-top-color:var(--primary);border-radius:50%;animation:spin .7s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.empty{padding:2rem;text-align:center;color:var(--muted);font-size:13px}
+
+/* TOAST */
+.toast{position:fixed;bottom:1rem;right:1rem;z-index:200;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r12);padding:.7rem 1rem;font-size:13px;font-weight:500;box-shadow:var(--shadow);transform:translateY(80px);opacity:0;transition:all 280ms cubic-bezier(.16,1,.3,1);pointer-events:none}
+.toast.show{transform:translateY(0);opacity:1}
+
+@media(max-width:600px){.main{padding:.875rem}.kpi-value{font-size:1.3rem}}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div class="login-wrap" id="login-wrap">
+  <div class="login-box">
+    <div class="login-logo">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><polyline points="12 6 12 12 15.5 14.5"/></svg>
+      時間ログ
+    </div>
+    <div class="form">
+      <div class="fg">
+        <label class="fl" for="em-input">メールアドレス</label>
+        <input class="fi" id="em-input" type="email" placeholder="メールアドレスを入力" autocomplete="email" onkeydown="if(event.key==='Enter')doLogin()">
+      </div>
+      <div class="fg">
+        <label class="fl" for="pw-input">パスワード</label>
+        <input class="fi" id="pw-input" type="password" placeholder="パスワードを入力" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+      </div>
+      <button class="btn btn-p" id="login-btn" onclick="doLogin()" style="width:100%;justify-content:center">ログイン</button>
+      <div class="login-err" id="login-err"></div>
+    </div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app" style="display:none;flex-direction:column;min-height:100dvh">
+  <header class="topbar">
+    <div style="display:flex;align-items:center;gap:.75rem">
+      <div class="logo">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><polyline points="12 6 12 12 15.5 14.5"/></svg>
+        時間ログ
+      </div>
+      <div class="tabs">
+        <button class="tab on" id="t-info" onclick="sw('info')">📊 現在情報</button>
+        <button class="tab" id="t-rec" onclick="sw('rec')">✏️ 記録</button>
+      </div>
+    </div>
+    <div class="topbar-r">
+      <button class="icon-btn" id="theme-btn" onclick="toggleTheme()" aria-label="テーマ切替"></button>
+      <button class="icon-btn" onclick="doLogout()" title="ログアウト" aria-label="ログアウト">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <main class="main">
+    <div class="view on" id="info">
+      <div class="kpi-row" id="kpis"></div>
+      <div class="card">
+        <div class="card-title">
+          今年 vs 前年 月次比較
+          <div class="ctl">
+            <span class="ctl-label">比較:</span>
+            <select class="fi" id="sel-p" onchange="renderAll()" style="width:auto;padding:.3rem .6rem"></select>
+            <span class="ctl-label">vs</span>
+            <select class="fi" id="sel-c" onchange="renderAll()" style="width:auto;padding:.3rem .6rem"></select>
+          </div>
+        </div>
+        <div class="tbl-wrap">
+          <table class="ctable">
+            <thead><tr><th>月</th><th id="th-p"></th><th id="th-c"></th><th>月差</th><th>累計差</th></tr></thead>
+            <tbody id="ctbody"></tbody>
+            <tfoot id="ctfoot"></tfoot>
+          </table>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-title">全年度 累計推移 <span class="badge">折れ線</span></div>
+        <div class="chart-wrap"><canvas id="chart"></canvas></div>
+      </div>
+    </div>
+
+    <div class="view" id="rec">
+      <div class="record-grid">
+        <div>
+          <div class="card">
+            <div class="card-title">月次時間を記録</div>
+            <form class="form" onsubmit="saveRec(event)">
+              <div class="row2">
+                <div class="fg"><label class="fl">年</label><select id="r-y" class="fi"></select></div>
+                <div class="fg"><label class="fl">月</label><select id="r-m" class="fi"></select></div>
+              </div>
+              <div class="row2">
+                <div class="fg"><label class="fl">時間</label><input id="r-h" class="fi" type="number" min="0" max="999" placeholder="0"></div>
+                <div class="fg"><label class="fl">分</label><input id="r-min" class="fi" type="number" min="0" max="59" placeholder="0"></div>
+              </div>
+              <div class="btn-row">
+                <button class="btn btn-p" type="submit" id="save-btn">保存</button>
+                <button class="btn btn-g" type="button" onclick="clearForm()">クリア</button>
+              </div>
+            </form>
+          </div>
+        </div>
+        <div class="card log-card">
+          <div class="card-title">記録一覧</div>
+          <div id="log"></div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const SUPABASE_URL = 'https://yualblhszaulhcuflorf.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl1YWxibGhzemF1bGhjdWZsb3JmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI0NjIyMTcsImV4cCI6MjA5ODAzODIxN30.mkzwU4vK-LnSQfMs4Fwe1QPXpbFBTkdyUvd8L39FZ3s';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+const MONTHS = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+const COLORS = ['#4f98a3','#6daa45','#e8af34','#d163a7','#bb653b','#5591c7','#a86fdf','#dd6974','#fdab43','#4fc4cf'];
+
+let data = {};
+function toMap(rows){ data={}; rows.forEach(r=>{ if(!data[r.year])data[r.year]={}; data[r.year][r.month]=r.minutes; }); }
+function years(){ return Object.keys(data).map(Number).sort((a,b)=>a-b); }
+function yTotal(y){ return Object.values(data[y]||{}).reduce((s,v)=>s+(v||0),0); }
+function recordedMonths(y){ return [1,2,3,4,5,6,7,8,9,10,11,12].filter(m=>(data[y]?.[m]||0)>0); }
+function lastRecordedMonth(y){ const ms=recordedMonths(y); return ms.length?Math.max(...ms):0; }
+function cumulative(y){
+  const latestY=years().length?Math.max(...years()):y;
+  const lastM=y===latestY?lastRecordedMonth(y):12;
+  let run=0;
+  return Array.from({length:12},(_,i)=>{
+    const m=i+1; if(m>lastM) return null;
+    run+=(data[y]?.[m]||0); return run>0?run:null;
+  });
+}
+function fmtHM(mins){ if(!mins||mins<=0)return '−'; const h=Math.floor(mins/60),m=mins%60; return m===0?`${h}時間`:`${h}時間${m}分`; }
+function fmtDiff(d){ if(d===0)return '±0'; const sign=d>0?'+':'−'; const a=Math.abs(d),h=Math.floor(a/60),m=a%60; if(h===0)return `${sign}${m}分`; return m===0?`${sign}${h}時間`:`${sign}${h}時間${m}分`; }
+
+// ============================================================
+// AUTH — Supabase Auth (email+password)
+// ============================================================
+async function doLogin(){
+  const btn=document.getElementById('login-btn');
+  const err=document.getElementById('login-err');
+  const pw=document.getElementById('pw-input').value;
+  if(!pw){ err.textContent='パスワードを入力してください'; return; }
+  btn.disabled=true; btn.textContent='ログイン中...'; err.textContent='';
+  try {
+    const em=document.getElementById('em-input').value.trim();
+    if(!em){ err.textContent='メールアドレスを入力してください'; btn.disabled=false; btn.textContent='ログイン'; return; }
+    const {data:d,error}=await sb.auth.signInWithPassword({email:em,password:pw});
+    if(error) throw error;
+    await bootApp();
+  } catch(e){
+    err.textContent='パスワードが違います';
+    document.getElementById('pw-input').focus();
+  } finally {
+    btn.disabled=false; btn.textContent='ログイン';
+  }
+}
+
+async function doLogout(){
+  await sb.auth.signOut();
+  document.getElementById('app').style.display='none';
+  document.getElementById('login-wrap').style.display='flex';
+  document.getElementById('pw-input').value='';
+  document.getElementById('login-err').textContent='';
+  data={};
+}
+
+async function bootApp(){
+  document.getElementById('login-wrap').style.display='none';
+  const app=document.getElementById('app');
+  app.style.display='flex';
+  initTheme();
+  await loadData();
+  initSelects();
+  renderAll();
+}
+
+// セッション復元
+sb.auth.onAuthStateChange(async(event,session)=>{
+  if(session && document.getElementById('login-wrap').style.display!=='none'){
+    await bootApp();
+  }
+});
+
+// ============================================================
+// DATA
+// ============================================================
+async function loadData(){
+  document.getElementById('kpis').innerHTML='<div class="loading"><div class="spinner"></div>読み込み中...</div>';
+  const {data:rows,error}=await sb.from('records').select('*').order('year').order('month');
+  if(error){ toast('読み込みエラー: '+error.message); return; }
+  toMap(rows||[]);
+}
+
+async function saveRec(e){
+  e.preventDefault();
+  const y=+document.getElementById('r-y').value;
+  const m=+document.getElementById('r-m').value;
+  const h=+(document.getElementById('r-h').value||0);
+  const min=+(document.getElementById('r-min').value||0);
+  if(min>59){ toast('分は0〜59で入力してください'); return; }
+  const total=h*60+min;
+  const btn=document.getElementById('save-btn');
+  btn.disabled=true; btn.textContent='保存中...';
+  try {
+    const uid=(await sb.auth.getUser()).data.user?.id;
+    const {error}=await sb.from('records').upsert({year:y,month:m,minutes:total,user_id:uid},{onConflict:'year,month'});
+    if(error) throw error;
+    await loadData(); initSelects();
+    document.getElementById('sel-c').value=y;
+    const ys=years().filter(yr=>yr<y); if(ys.length) document.getElementById('sel-p').value=Math.max(...ys);
+    clearForm(); renderAll();
+    toast(`${y}年${m}月 ${fmtHM(total)} を保存しました`);
+  } catch(err){ toast('保存エラー: '+err.message); }
+  finally{ btn.disabled=false; btn.textContent='保存'; }
+}
+
+async function delRec(y,m){
+  const {error}=await sb.from('records').delete().eq('year',y).eq('month',m);
+  if(error){ toast('削除エラー: '+error.message); return; }
+  await loadData(); renderAll();
+  toast(`${y}年${m}月を削除しました`);
+}
+
+// ============================================================
+// SELECTS
+// ============================================================
+function initSelects(){
+  const ys=years(); const latestY=ys.length?Math.max(...ys):new Date().getFullYear();
+  const sp=document.getElementById('sel-p'),sc=document.getElementById('sel-c');
+  const pv=sp.value,cv=sc.value;
+  sp.innerHTML=ys.map(y=>`<option value="${y}" ${+pv===y||(!pv&&y===latestY-1)?'selected':''}>${y}年</option>`).join('');
+  sc.innerHTML=ys.map(y=>`<option value="${y}" ${+cv===y||(!cv&&y===latestY)?'selected':''}>${y}年</option>`).join('');
+  const now=new Date().getFullYear();
+  const ry=document.getElementById('r-y'); const rv=ry.value;
+  const recYears=[]; for(let yr=now+3;yr>=2020;yr--) recYears.push(yr);
+  ry.innerHTML=recYears.map(yr=>`<option value="${yr}" ${+rv===yr||(!rv&&yr===now)?'selected':''}>${yr}年</option>`).join('');
+  const rm=document.getElementById('r-m'); const rmv=rm.value; const nowM=new Date().getMonth()+1;
+  rm.innerHTML=MONTHS.map((mn,i)=>`<option value="${i+1}" ${+rmv===i+1||(!rmv&&i+1===nowM)?'selected':''}>${mn}</option>`).join('');
+}
+
+// ============================================================
+// RENDER
+// ============================================================
+function renderKPIs(){
+  const cy=+document.getElementById('sel-c').value||new Date().getFullYear();
+  const py=cy-1; const ct=yTotal(cy),pt=yTotal(py);
+  const rm=recordedMonths(cy); const lastM=rm.length?Math.max(...rm):null;
+  const lastV=lastM?(data[cy][lastM]||0):0; const lastPV=lastM?(data[py]?.[lastM]||0):0;
+  const avg=rm.length?Math.round(ct/rm.length):0;
+  const diff=ct-pt,ldiff=lastV-lastPV;
+  const cards=[
+    {label:`${cy}年 累計`,val:fmtHM(ct),note:fmtDiff(diff),col:diff>0?'var(--success)':diff<0?'var(--error)':'var(--faint)'},
+    {label:'月平均',val:fmtHM(avg),note:`${rm.length}ヶ月記録済み`,col:'var(--muted)'},
+    {label:`最新月 (${lastM?MONTHS[lastM-1]:'−'})`,val:fmtHM(lastV),note:`前年同月差 ${fmtDiff(ldiff)}`,col:ldiff>0?'var(--success)':ldiff<0?'var(--error)':'var(--faint)'},
+    {label:'記録開始',val:years().length?`${Math.min(...years())}年`:'−',note:'自動拡張対応',col:'var(--muted)'},
+  ];
+  document.getElementById('kpis').innerHTML=cards.map(c=>`<div class="kpi"><div class="kpi-label">${c.label}</div><div class="kpi-value">${c.val}</div><div class="kpi-note" style="color:${c.col}">${c.note}</div></div>`).join('');
+}
+
+function renderTable(){
+  const py=+document.getElementById('sel-p').value||new Date().getFullYear()-1;
+  const cy=+document.getElementById('sel-c').value||new Date().getFullYear();
+  document.getElementById('th-p').textContent=`${py}年`;
+  document.getElementById('th-c').textContent=`${cy}年`;
+  const latestY=years().length?Math.max(...years()):cy;
+  const limitM=cy===latestY?lastRecordedMonth(cy):12;
+  let body='',pcum=0,ccum=0;
+  for(let m=1;m<=12;m++){
+    const p=data[py]?.[m]||0,c=data[cy]?.[m]||0;
+    pcum+=p; ccum+=c;
+    const diff=c-p,cdiff=ccum-pcum;
+    const dc=diff>0?'pos':diff<0?'neg':'zero';
+    const cc2=cdiff>0?'pos':cdiff<0?'neg':'zero';
+    const isNow=cy===new Date().getFullYear()&&m===new Date().getMonth()+1;
+    const isFuture=cy===latestY&&m>limitM;
+    body+=`<tr class="${isNow?'hl':''}"><td>${MONTHS[m-1]}</td><td>${p?fmtHM(p):'−'}</td><td class="bold">${isFuture?'−':c?fmtHM(c):'−'}</td><td class="${isFuture?'zero':dc}">${isFuture||(!p&&!c)?'−':fmtDiff(diff)}</td><td class="${isFuture?'zero':cc2}">${isFuture?'−':fmtDiff(cdiff)}</td></tr>`;
+  }
+  const pt=yTotal(py),ct2=yTotal(cy),td=ct2-pt;
+  document.getElementById('ctbody').innerHTML=body;
+  document.getElementById('ctfoot').innerHTML=`<tr><td>合計</td><td>${fmtHM(pt)}</td><td>${fmtHM(ct2)}</td><td class="${td>0?'pos':td<0?'neg':'zero'}">${fmtDiff(td)}</td><td class="${td>0?'pos':td<0?'neg':'zero'}">${fmtDiff(td)}</td></tr>`;
+}
+
+let chartInst=null;
+function renderChart(){
+  const ctx=document.getElementById('chart');
+  const isDark=document.documentElement.getAttribute('data-theme')!=='light';
+  const gc=isDark?'rgba(255,255,255,.07)':'rgba(0,0,0,.07)';
+  const tc=isDark?'#797876':'#7a7974';
+  const ys=years(); if(!ys.length) return;
+  const datasets=ys.map((y,i)=>({
+    label:`${y}年`,data:cumulative(y),
+    borderColor:COLORS[i%COLORS.length],backgroundColor:COLORS[i%COLORS.length]+'18',
+    borderWidth:y===Math.max(...ys)?3:1.8,pointRadius:3.5,pointHoverRadius:6,tension:.3,spanGaps:false,
+  }));
+  if(chartInst) chartInst.destroy();
+  chartInst=new Chart(ctx,{
+    type:'line',data:{labels:MONTHS,datasets},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      plugins:{
+        legend:{position:'bottom',labels:{color:tc,font:{family:'Satoshi',size:11},padding:14,usePointStyle:true,pointStyleWidth:8}},
+        tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${c.parsed.y!=null?fmtHM(c.parsed.y):'未記録'}`}}
+      },
+      scales:{
+        x:{grid:{color:gc},ticks:{color:tc,font:{family:'Satoshi',size:11}}},
+        y:{grid:{color:gc},ticks:{color:tc,font:{family:'Satoshi',size:11},callback:v=>fmtHM(v)}}
+      },
+      animation:{duration:500}
+    }
+  });
+}
+
+function renderLog(){
+  const rows=[];
+  years().forEach(y=>{ for(let m=1;m<=12;m++){ if((data[y][m]||0)>0) rows.push({y:+y,m,v:data[y][m]}); } });
+  rows.sort((a,b)=>b.y-a.y||b.m-a.m);
+  const el=document.getElementById('log');
+  if(!rows.length){ el.innerHTML='<div class="empty">データがありません</div>'; return; }
+  el.innerHTML=`<table class="ltable"><thead><tr><th>年</th><th>月</th><th>時間</th><th></th></tr></thead><tbody>${rows.map(r=>`<tr><td>${r.y}</td><td>${r.m}月</td><td style="font-weight:700">${fmtHM(r.v)}</td><td><button class="del" onclick="delRec(${r.y},${r.m})">✕</button></td></tr>`).join('')}</tbody></table>`;
+}
+
+function renderAll(){ renderKPIs(); renderTable(); renderChart(); renderLog(); }
+function clearForm(){ document.getElementById('r-h').value=''; document.getElementById('r-min').value=''; }
+
+// ============================================================
+// THEME & VIEW
+// ============================================================
+function toggleTheme(){
+  const cur=document.documentElement.getAttribute('data-theme')||'dark';
+  const next=cur==='dark'?'light':'dark';
+  document.documentElement.setAttribute('data-theme',next);
+  localStorage.setItem('jikan_theme',next);
+  updateThemeIcon(next); renderChart();
+}
+function updateThemeIcon(t){
+  document.getElementById('theme-btn').innerHTML=t==='light'
+    ?'<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>'
+    :'<svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>';
+}
+function initTheme(){
+  const saved=localStorage.getItem('jikan_theme')||'dark';
+  document.documentElement.setAttribute('data-theme',saved);
+  updateThemeIcon(saved);
+}
+
+function sw(id){
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('on'));
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('on'));
+  document.getElementById(id).classList.add('on');
+  document.getElementById('t-'+id).classList.add('on');
+  if(id==='info') renderChart();
+}
+
+let _tt;
+function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(_tt); _tt=setTimeout(()=>t.classList.remove('show'),2400); }
+</script>
+</body>
+</html>
