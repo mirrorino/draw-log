@@ -410,7 +410,7 @@ function renderTable(){
     const cc2=cdiff>0?'pos':cdiff<0?'neg':'zero';
     const isNow=cy===new Date().getFullYear()&&m===new Date().getMonth()+1;
     const isFuture=cy===latestY&&m>limitM;
-    body+=`<tr class="${isNow?'hl':''}"><td>${MONTHS[m-1]}</td><td>${p?fmtHM(p):'−'}</td><td class="bold">${isFuture?'−':c?fmtHM(c):'−'}</td><td class="${isFuture?'zero':dc}">${isFuture||(!p&&!c)?'−':fmtDiff(diff)}</td><td class="${isFuture?'zero':cc2}">${isFuture?'−':fmtDiff(cdiff)}</td></tr>`;
+    body+=`<tr class="${isNow?'hl':''}"><td class="bold">${MONTHS[m-1]}</td><td class="bold">${p?fmtHM(p):'−'}</td><td class="bold">${isFuture?'−':c?fmtHM(c):'−'}</td><td class="${isFuture?'zero':dc}">${isFuture||(!p&&!c)?'−':fmtDiff(diff)}</td><td class="${isFuture?'zero':cc2}">${isFuture?'−':fmtDiff(cdiff)}</td></tr>`;
   }
   const pt=yTotal(py),ct2=yTotal(cy),td=ct2-pt;
   document.getElementById('ctbody').innerHTML=body;
