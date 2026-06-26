@@ -491,6 +491,21 @@ function sw(id){
 
 let _tt;
 function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(_tt); _tt=setTimeout(()=>t.classList.remove('show'),2400); }
+document.addEventListener("visibilitychange", async()=>{
+  if(document.visibilityState==="visible"){
+    const {data:{session}}=await sb.auth.getSession();
+    if(session){
+      if(document.getElementById("login-wrap").style.display!=="none"){
+        await bootApp();
+      } else {
+        await loadData();
+        renderAll();
+      }
+    } else {
+      await doLogout();
+    }
+  }
+});
 </script>
 </body>
 </html>
