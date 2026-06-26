@@ -293,6 +293,12 @@ async function doLogout(){
 }
 
 async function bootApp(){
+  const {data:{session}}=await sb.auth.getSession();
+  if(!session){
+    document.getElementById('app').style.display='none';
+    document.getElementById('login-wrap').style.display='flex';
+    return;
+  }
   document.getElementById('login-wrap').style.display='none';
   const app=document.getElementById('app');
   app.style.display='flex';
