@@ -297,12 +297,6 @@ async function signOutUser(){
 }
 
 async function bootApp(){
-  const {data:{session}}=await sb.auth.getSession();
-  if(!session){
-    document.getElementById('app').style.display='none';
-    document.getElementById('login-wrap').style.display='flex';
-    return;
-  }
   document.getElementById('login-wrap').style.display='none';
   const app=document.getElementById('app');
   app.style.display='flex';
@@ -313,10 +307,12 @@ async function bootApp(){
 }
 
 // セッション復元
+let _booted=false;
 sb.auth.onAuthStateChange(async(event,session)=>{
   if(event==='SIGNED_IN'){
+    _booted=true;
     await bootApp();
-  } else if(event==='SIGNED_OUT'){
+  } else if(event==='SIGNED_OUT' && _booted){
     await doLogout();
   }
 });
@@ -324,7 +320,10 @@ sb.auth.onAuthStateChange(async(event,session)=>{
 // 初回ロード時セッション確認
 (async()=>{
   const {data:{session}}=await sb.auth.getSession();
-  if(session) await bootApp();
+  if(session){
+    _booted=true;
+    await bootApp();
+  }
 })();
 
 // 別タブ・別アプリから戻ったときにデータだけ再読み込み（ログアウトはしない）
