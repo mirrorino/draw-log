@@ -306,24 +306,20 @@ async function bootApp(){
   renderAll();
 }
 
-// セッション復元
-let _booted=false;
-sb.auth.onAuthStateChange(async(event,session)=>{
-  if(event==='SIGNED_IN'){
-    _booted=true;
-    await bootApp();
-  } else if(event==='SIGNED_OUT' && _booted){
-    await doLogout();
-  }
-});
-
-// 初回ロード時セッション確認
+// セッション復元・初回ロード
 (async()=>{
   const {data:{session}}=await sb.auth.getSession();
   if(session){
-    _booted=true;
     await bootApp();
   }
+
+  sb.auth.onAuthStateChange(async(event,session)=>{
+    if(event==='SIGNED_IN'){
+      await bootApp();
+    } else if(event==='SIGNED_OUT'){
+      await doLogout();
+    }
+  });
 })();
 
 // 別タブ・別アプリから戻ったときにデータだけ再読み込み（ログアウトはしない）
